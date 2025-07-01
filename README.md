@@ -273,4 +273,4 @@ Pro technické problémy:
 
 **Verze:** 2.0.0  
 **Poslední aktualizace:** Červenec 2025  
-**Kompatibilita:** Python 3.8+, Node.js 16+, FFmpeg 4.0+ 
+**Kompatibilita:** Python 3.8+, Node.js 16+, FFmpeg 4.0+
