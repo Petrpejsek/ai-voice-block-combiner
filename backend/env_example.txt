@@ -1,0 +1,14 @@
+# API konfigurace
+# Zkopírujte obsah tohoto souboru do souboru .env ve stejné složce
+
+# ElevenLabs API klíč - získejte na: https://elevenlabs.io
+ELEVENLABS_API_KEY=your_api_key_here
+
+# OpenAI API klíč - získejte na: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Volitelně: výchozí voice ID pro Tesla
+TESLA_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+
+# Volitelně: výchozí voice ID pro Socrates  
+SOCRATES_VOICE_ID=AZnzlk1XvdvUeBnXmlld 

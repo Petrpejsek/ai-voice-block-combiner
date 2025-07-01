@@ -1,0 +1,10 @@
+# Python dependencies pro AI Voice Block Combiner
+flask==2.3.3
+flask-cors==4.0.0
+pydub==0.25.1
+requests==2.31.0
+python-dotenv==1.0.0
+openai==1.54.0
+
+# Poznámka: Pro video generování je také potřeba ffmpeg
+# Instalace: brew install ffmpeg (macOS) nebo apt install ffmpeg (Ubuntu) 
