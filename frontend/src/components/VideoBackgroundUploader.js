@@ -111,10 +111,10 @@ const VideoBackgroundUploader = ({ onVideoBackgroundSelected }) => {
   };
 
   const selectVideoBackground = (videoBackground) => {
-    console.log('🎥 VideoBackgroundUploader vybírá video pozadí:', videoBackground);
+    console.log('VideoBackgroundUploader vybírá video pozadí:', videoBackground);
     setSelectedVideoBackground(videoBackground);
     if (onVideoBackgroundSelected) {
-      console.log('📤 Volám onVideoBackgroundSelected callback');
+              console.log('Volám onVideoBackgroundSelected callback');
       onVideoBackgroundSelected(videoBackground);
     }
   };
@@ -147,7 +147,7 @@ const VideoBackgroundUploader = ({ onVideoBackgroundSelected }) => {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
       <h2 className="text-xl font-bold text-gray-900 mb-4">
-        🎥 Správa video pozadí
+        Správa video pozadí
       </h2>
 
       {/* Upload area */}
@@ -190,7 +190,7 @@ const VideoBackgroundUploader = ({ onVideoBackgroundSelected }) => {
               <div className="text-sm text-gray-600">
                 <p className="font-medium">Klikněte pro výběr nebo přetáhněte video</p>
                 <p className="text-xs text-gray-500 mt-1">MP4, MOV až 100MB</p>
-                <p className="text-xs text-purple-600 mt-1">💡 Video bude automaticky loopováno podle délky audia</p>
+                <p className="text-xs text-purple-600 mt-1">Video bude automaticky loopováno podle délky audia</p>
               </div>
             </>
           )}
@@ -273,7 +273,7 @@ const VideoBackgroundUploader = ({ onVideoBackgroundSelected }) => {
                 {selectedVideoBackground?.filename === video.filename && (
                   <div className="absolute inset-0 bg-purple-500 bg-opacity-20 flex items-center justify-center">
                     <div className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                      ✓ Vybráno
+                      Vybráno
                     </div>
                   </div>
                 )}

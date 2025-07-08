@@ -111,10 +111,10 @@ const BackgroundUploader = ({ onBackgroundSelected }) => {
   };
 
   const selectBackground = (background) => {
-    console.log('🖼️ BackgroundUploader vybírá pozadí:', background);
+    console.log('BackgroundUploader vybírá pozadí:', background);
     setSelectedBackground(background);
     if (onBackgroundSelected) {
-      console.log('📤 Volám onBackgroundSelected callback');
+      console.log('Volám onBackgroundSelected callback');
       onBackgroundSelected(background);
     }
   };
@@ -147,7 +147,7 @@ const BackgroundUploader = ({ onBackgroundSelected }) => {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
       <h2 className="text-xl font-bold text-gray-900 mb-4">
-        🖼️ Správa obrázků pozadí
+        Správa obrázků pozadí
       </h2>
 
       {/* Upload area */}
@@ -198,7 +198,7 @@ const BackgroundUploader = ({ onBackgroundSelected }) => {
         {/* Error message */}
         {uploadError && (
           <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600">❌ {uploadError}</p>
+            <p className="text-sm text-red-600">CHYBA: {uploadError}</p>
           </div>
         )}
       </div>
@@ -208,16 +208,16 @@ const BackgroundUploader = ({ onBackgroundSelected }) => {
         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-green-800">
-                ✅ Vybrané pozadí
-              </h3>
+                          <h3 className="text-sm font-medium text-green-800">
+              Vybrané pozadí
+            </h3>
               <p className="text-sm text-green-700">{selectedBackground.filename}</p>
             </div>
             <button
               onClick={removeBackground}
               className="text-red-500 hover:text-red-700 text-sm"
             >
-              🗑️ Odebrat
+              Odebrat
             </button>
           </div>
         </div>
@@ -227,7 +227,7 @@ const BackgroundUploader = ({ onBackgroundSelected }) => {
       {backgrounds.length > 0 && (
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-3">
-            📁 Nahrané pozadí ({backgrounds.length})
+            Nahrané pozadí ({backgrounds.length})
           </h3>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

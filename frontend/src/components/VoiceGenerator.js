@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const VoiceGenerator = ({ onVoicesGenerated }) => {
+const VoiceGenerator = ({ onVoicesGenerated, autoJsonFromPipeline }) => {
   const [voiceBlocksJson, setVoiceBlocksJson] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -20,6 +20,27 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       setApiKey(savedApiKey);
     }
   }, []);
+
+  // Automatické vložení JSON z Video Production Pipeline
+  React.useEffect(() => {
+    if (autoJsonFromPipeline) {
+      console.log('🎬 Video Pipeline poslal JSON:', autoJsonFromPipeline);
+      try {
+        const formattedJson = JSON.stringify(autoJsonFromPipeline, null, 2);
+        setVoiceBlocksJson(formattedJson);
+        setError(''); // Vymaže předchozí chyby
+        setResult({
+          success: true,
+          message: '🎬 JSON automaticky vložen z Video Production Pipeline! Zkontrolujte a klikněte "Generovat hlasy".',
+          video_pipeline: true
+        });
+        console.log('✅ JSON z Video Pipeline úspěšně vložen');
+      } catch (err) {
+        console.error('❌ Chyba při zpracování JSON z Video Pipeline:', err);
+        setError('Chyba při zpracování JSON z Video Production Pipeline: ' + err.message);
+      }
+    }
+  }, [autoJsonFromPipeline]);
 
   // Uloží API klíč do localStorage při změně
   const handleApiKeyChange = (newApiKey) => {
@@ -48,9 +69,9 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
   };
 
   const handleGenerateVoices = async () => {
-    console.log('🚀 handleGenerateVoices ZAČÍNÁ');
-    console.log('📝 JSON input:', voiceBlocksJson);
-    console.log('🔑 API key:', apiKey ? '***nastaven***' : 'CHYBÍ');
+    console.log('handleGenerateVoices ZAČÍNÁ');
+    console.log('JSON input:', voiceBlocksJson);
+    console.log('API key:', apiKey ? '***nastaven***' : 'CHYBÍ');
 
     if (!voiceBlocksJson.trim()) {
       setError('Zadejte JSON definici hlasových bloků!');
@@ -66,14 +87,14 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
     let voiceBlocks;
     try {
       voiceBlocks = JSON.parse(voiceBlocksJson);
-      console.log('✅ JSON parsován úspěšně:', voiceBlocks);
+              console.log('JSON parsován úspěšně:', voiceBlocks);
     } catch (e) {
-      console.error('❌ JSON parse error:', e);
+              console.error('JSON parse error:', e);
       setError('Neplatný JSON formát!');
       return;
     }
 
-    console.log('📤 Odesílám request na backend...');
+    console.log('Odesílám request na backend...');
     setIsGenerating(true);
     setError('');
     setResult(null);
@@ -83,10 +104,10 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         voice_blocks: voiceBlocks,
         api_key: apiKey
       };
-      console.log('📦 Request data:', requestData);
+      console.log('Request data:', requestData);
       
       const response = await axios.post('/api/generate-voices', requestData);
-      console.log('✅ Response úspěšná:', response.data);
+      console.log('Response úspěšná:', response.data);
 
       setResult(response.data);
       
@@ -100,9 +121,9 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         onVoicesGenerated(filesWithTexts);
       }
     } catch (err) {
-      console.error('❌ Request error:', err);
-      console.error('❌ Response data:', err.response?.data);
-      console.error('❌ Error message:', err.message);
+              console.error('Request error:', err);
+        console.error('Response data:', err.response?.data);
+        console.error('Error message:', err.message);
       // Nová logika: Zobrazí detailní zprávu z backendu pokud existuje
       const backendData = err.response?.data;
       let friendlyMsg = err.message || 'Došlo k chybě při generování hlasů!';
@@ -117,7 +138,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       }
       setError(friendlyMsg);
     } finally {
-      console.log('🏁 Generování dokončeno');
+      console.log('Generování dokončeno');
       setIsGenerating(false);
     }
   };
@@ -128,18 +149,18 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       setVoiceBlocksJson(formattedJson);
       setError(''); // Vymaže předchozí chyby
       setResult(null); // Vymaže předchozí výsledky
-      console.log('✅ Ukázka načtena úspěšně');
+              console.log('Ukázka načtena úspěšně');
     } catch (err) {
       setError('Chyba při načítání ukázky: ' + err.message);
-      console.error('❌ Chyba při načítání ukázky:', err);
+              console.error('Chyba při načítání ukázky:', err);
     }
   };
 
   // Funkce pro generování JSON z tématu pomocí OpenAI
   const handleGenerateFromTopic = async () => {
-    console.log('🎬 Generuji dokumentární naraci z tématu...');
-    console.log('📝 Téma:', documentaryTopic);
-    console.log('🎭 Styl:', documentaryStyle);
+    console.log('Generuji dokumentární naraci z tématu...');
+    console.log('Téma:', documentaryTopic);
+    console.log('Styl:', documentaryStyle);
 
     if (!documentaryTopic.trim()) {
       setError('Zadejte téma dokumentu!');
@@ -155,10 +176,10 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         topic: documentaryTopic.trim(),
         style: documentaryStyle.trim()
       };
-      console.log('📤 Odesílám request na /api/generate-narration:', requestData);
+      console.log('Odesílám request na /api/generate-narration:', requestData);
       
       const response = await axios.post('/api/generate-narration', requestData);
-      console.log('✅ Response úspěšná:', response.data);
+      console.log('Response úspěšná:', response.data);
 
       if (response.data.success && response.data.data.narration) {
         // Převede naraci do správného formátu a vloží do JSON textarea
@@ -169,18 +190,18 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         // Zobrazí úspěšnou zprávu
         setResult({
           success: true,
-          message: `✅ Dokumentární narrace vygenerována úspěšně! ${response.data.data.metadata.blocks_count} bloků připraveno ke generování hlasu.`,
+          message: `Dokumentární narrace vygenerována úspěšně! ${response.data.data.metadata.blocks_count} bloků připraveno ke generování hlasu.`,
           generated_count: response.data.data.metadata.blocks_count,
           topic: documentaryTopic,
           style: documentaryStyle
         });
         
-        console.log('✅ JSON narrace vložena do textarea');
+        console.log('JSON narrace vložena do textarea');
       } else {
         setError('Neočekávaná odpověď ze serveru');
       }
     } catch (err) {
-      console.error('❌ Request error:', err);
+              console.error('Request error:', err);
       const backendData = err.response?.data;
       let friendlyMsg = err.message || 'Došlo k chybě při generování dokumentární narrace!';
       if (backendData?.error) {
@@ -188,7 +209,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       }
       setError(friendlyMsg);
     } finally {
-      console.log('🏁 Generování z tématu dokončeno');
+      console.log('Generování z tématu dokončeno');
       setIsGeneratingFromTopic(false);
     }
   };
@@ -197,13 +218,13 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
     <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-900">
-          🎤 Generování hlasů (ElevenLabs API)
+          Generování hlasů (ElevenLabs API)
         </h2>
         <button
           onClick={loadExampleJson}
           className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition duration-200"
         >
-          📝 Načíst ukázku
+          Načíst ukázku
         </button>
       </div>
 
@@ -211,14 +232,14 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            🔑 ElevenLabs API klíč:
+            ElevenLabs API klíč:
           </label>
           {apiKey && (
             <button
               onClick={() => handleApiKeyChange('')}
               className="text-xs text-red-600 hover:text-red-800 underline"
             >
-              🗑️ Vymazat
+              Vymazat
             </button>
           )}
         </div>
@@ -235,7 +256,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
           </p>
           {apiKey && (
             <p className="text-xs text-green-600 font-medium">
-              💾 Uloženo
+              Uloženo
             </p>
           )}
         </div>
@@ -244,13 +265,13 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       {/* NOVÁ SEKCE: Automatické generování z tématu */}
       <div className="mb-6 border-t border-gray-200 pt-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          🎬 Automatické generování dokumentu z tématu
+          Automatické generování dokumentu z tématu
         </h3>
         
         {/* Téma dokumentu */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            📝 Téma dokumentu:
+            Téma dokumentu:
           </label>
           <input
             type="text"
@@ -267,18 +288,18 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         {/* Styl dokumentu */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            🎭 Styl dokumentu:
+            Styl dokumentu:
           </label>
           <select
             value={documentaryStyle}
             onChange={(e) => setDocumentaryStyle(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
           >
-            <option value="Cinematic, BBC-style, serious tone">🎥 Filmový, BBC styl, vážný tón</option>
-            <option value="Educational, National Geographic style, engaging">📚 Vzdělávací, National Geographic styl</option>
-            <option value="Dramatic, History Channel style, suspenseful">🎭 Dramatický, History Channel styl</option>
-            <option value="Conversational, podcast style, accessible">🎙️ Konverzační, podcast styl</option>
-            <option value="Academic, scholarly tone, detailed">🎓 Akademický, odborný tón</option>
+            <option value="Cinematic, BBC-style, serious tone">Filmový, BBC styl, vážný tón</option>
+            <option value="Educational, National Geographic style, engaging">Vzdělávací, National Geographic styl</option>
+            <option value="Dramatic, History Channel style, suspenseful">Dramatický, History Channel styl</option>
+            <option value="Conversational, podcast style, accessible">Konverzační, podcast styl</option>
+            <option value="Academic, scholarly tone, detailed">Akademický, odborný tón</option>
           </select>
           <p className="text-xs text-gray-500 mt-1">
             Vyberte styl a tón dokumentu
@@ -288,7 +309,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
         {/* Informační box o funkci */}
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
           <p className="text-sm text-blue-800 font-medium mb-1">
-            🤖 Jak funguje automatické generování:
+            Jak funguje automatické generování:
           </p>
           <ol className="text-xs text-blue-700 space-y-1 ml-4">
             <li>1. Zadejte téma a styl dokumentu</li>
@@ -320,7 +341,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
               Generuji dokumentární naraci...
             </span>
           ) : (
-            '🎬 Generovat dokumentární naraci z tématu'
+            'Generovat dokumentární naraci z tématu'
           )}
         </button>
       </div>
@@ -329,10 +350,10 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            📋 JSON definice hlasových bloků:
+            JSON definice hlasových bloků:
           </label>
           <span className="text-xs text-gray-500">
-            {voiceBlocksJson ? '📝 Upravit' : '✍️ Ručně zadat'} 
+            {voiceBlocksJson ? 'Upravit' : 'Ručně zadat'} 
           </span>
         </div>
         <textarea
@@ -354,7 +375,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       {/* Informační box */}
       <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
         <p className="text-sm text-blue-800 font-medium mb-1">
-          💡 Jak získat Voice ID:
+          Jak získat Voice ID:
         </p>
         <ol className="text-xs text-blue-700 space-y-1 ml-4">
           <li>1. Přihlaste se na <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer" className="underline">elevenlabs.io</a></li>
@@ -367,7 +388,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
       {/* Chybová zpráva */}
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-600">❌ {error}</p>
+          <p className="text-sm text-red-600">CHYBA: {error}</p>
         </div>
       )}
 
@@ -393,15 +414,37 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
             Generuji hlasy...
           </span>
         ) : (
-          '🎤 Generovat hlasy'
+                      'Generovat hlasy'
         )}
       </button>
 
+      {/* Special result for Video Pipeline */}
+      {result && result.video_pipeline && (
+        <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h3 className="text-lg font-semibold text-purple-900 mb-3 flex items-center">
+            <span className="mr-2">🎬</span>
+            Video Production Pipeline → Voice Generator
+          </h3>
+          <p className="text-sm text-purple-800 mb-2">
+            {result.message}
+          </p>
+          <div className="bg-purple-100 p-3 rounded mt-3">
+            <p className="text-xs text-purple-700">
+              <strong>Automatické propojení:</strong><br/>
+              1. ✅ JSON byl automaticky vložen z Video Production Pipeline<br/>
+              2. 🔧 Zkontrolujte/upravte voice_id podle potřeby<br/>
+              3. 🎵 Klikněte "Generovat hlasy" pro vytvoření audio souborů<br/>
+              4. 🔄 Soubory se automaticky přidají do audio zpracování níže
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Výsledky */}
-      {result && (
+      {result && !result.video_pipeline && (
         <div className="mt-6 p-4 bg-gray-50 rounded-md">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">
-            {result.success ? '✅' : '❌'} Výsledky generování
+            {result.success ? 'ÚSPĚCH' : 'CHYBA'} - Výsledky generování
           </h3>
           
           <div className="space-y-2">
@@ -416,7 +459,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
           {result.generated_files && result.generated_files.length > 0 && (
             <div className="mt-3">
               <p className="text-sm font-medium text-green-800 mb-2">
-                🎵 Vygenerované soubory:
+                Vygenerované soubory:
               </p>
               <div className="space-y-1">
                 {result.generated_files.map((file, index) => (
@@ -426,7 +469,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
                 ))}
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                💡 Soubory jsou automaticky dostupné v sekci "Hlavní audio soubory" níže.
+                Soubory jsou automaticky dostupné v sekci "Hlavní audio soubory" níže.
               </p>
             </div>
           )}
@@ -434,7 +477,7 @@ const VoiceGenerator = ({ onVoicesGenerated }) => {
           {result.errors && result.errors.length > 0 && (
             <div className="mt-3">
               <p className="text-sm font-medium text-red-800 mb-2">
-                ❌ Chyby ({result.error_count}):
+                Chyby ({result.error_count}):
               </p>
               <div className="space-y-1">
                 {result.errors.map((error, index) => (
