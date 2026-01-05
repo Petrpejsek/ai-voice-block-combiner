@@ -1,0 +1,5 @@
+---
+description: AI Voice Block Combiner - Backend Flask na portu 50000, React na 4000. ElevenLabs TTS + OpenAI API + MoviePy video zpracování. Timeout 1800s pro velké projekty. Používej secure_filename pro uploads, clip.close() pro MoviePy, axios timeout 1800000ms.
+globs: ["**/*.py", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json"]
+alwaysApply: true
+---

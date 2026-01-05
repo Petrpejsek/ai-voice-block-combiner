@@ -1,14 +1,142 @@
 # API konfigurace
 # Zkopírujte obsah tohoto souboru do souboru .env ve stejné složce
 
-# ElevenLabs API klíč - získejte na: https://elevenlabs.io
+# ElevenLabs API klíč - získejte na: https://elevenlabs.io (deprecated - používáme Google TTS)
 ELEVENLABS_API_KEY=your_api_key_here
+
+# OpenRouter API klíč - získejte na: https://openrouter.ai/keys
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 # OpenAI API klíč - získejte na: https://platform.openai.com/api-keys
 OPENAI_API_KEY=your_openai_api_key_here
+
+# YouTube API klíč (volitelné, server-side)
+YOUTUBE_API_KEY=your_youtube_api_key_here
+
+# ============================================================
+# Google Cloud Text-to-Speech (OPTIMALIZOVÁNO PRO PŘIROZENÝ HLAS)
+# ============================================================
+
+# Path k service account JSON souboru (získejte z Google Cloud Console)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
+
+# Voice name pro TTS
+# DOPORUČENÍ PRO NEJPŘIROZENĚJŠÍ HLAS:
+# - en-US-Journey-D (nejnovější, nejpřirozenější mužský - TOP volba)
+# - en-US-Journey-F (nejnovější, nejpřirozenější ženský)
+# - en-US-Studio-O (studio kvalita, vhodný pro dokumenty)
+# - en-US-Studio-Q (studio kvalita, alternativní)
+# - en-US-Neural2-D (dobrá kvalita, default)
+# - en-US-Neural2-F (dobrá kvalita ženský)
+# Pro ostatní jazyky: https://cloud.google.com/text-to-speech/docs/voices
+GCP_TTS_VOICE_NAME=en-US-Journey-D
+
+# Language code (např. en-US, cs-CZ, de-DE)
+GCP_TTS_LANGUAGE_CODE=en-US
+
+# Rychlost řeči (0.25-4.0)
+# DOPORUČENÍ: 0.92-0.95 pro dokumentární styl (o 5-8% pomalejší = přirozenější)
+# Default 1.0 může znít příliš rychle
+GCP_TTS_SPEAKING_RATE=0.95
+
+# Výška hlasu (-20.0 až 20.0, default 0.0)
+# DOPORUČENÍ: -1.0 až -2.0 pro mužské hlasy (hlubší, autoritativnější)
+# Pro ženské hlasy: 0.0 až +1.0
+GCP_TTS_PITCH=-1.0
+
+# SSML podpora - přidává přirozené pauzy a intonaci (true/false)
+# DŮRAZNĚ DOPORUČENO: true pro přirozenější výstup
+GCP_TTS_USE_SSML=true
+
+# Audio effects profile - optimalizuje zvuk pro cílové zařízení
+# Možnosti:
+# - headphone-class-device (DOPORUČENO pro YouTube)
+# - large-home-entertainment-class-device (pro velké reproduktory)
+# - small-bluetooth-speaker-class-device (pro mobilní poslech)
+# - handset-class-device (pro telefony)
+# Více: https://cloud.google.com/text-to-speech/docs/audio-profiles
+GCP_TTS_EFFECTS_PROFILE=headphone-class-device
 
 # Volitelně: výchozí voice ID pro Tesla
 TESLA_VOICE_ID=21m00Tcm4TlvDq8ikWAM
 
 # Volitelně: výchozí voice ID pro Socrates  
-SOCRATES_VOICE_ID=AZnzlk1XvdvUeBnXmlld 
+SOCRATES_VOICE_ID=AZnzlk1XvdvUeBnXmlld
+
+# === MULTI-SOURCE VIDEO SEARCH (AAR) ===
+# Europeana API Key (volitelné, pro přístup k evropským archivům)
+# Získejte zdarma na: https://pro.europeana.eu/page/get-api
+# Bez tohoto klíče bude AAR používat pouze Archive.org + Wikimedia Commons
+EUROPEANA_API_KEY=your_europeana_api_key_here 
+
+# Multi-source strategy (farm efficiency):
+# - cascade: query providers in priority order and STOP early once we have enough candidates (FAST)
+# - all: query all providers every time (SLOW, max recall)
+AAR_MULTI_SOURCE_MODE=cascade
+
+# How many providers to try per query in cascade mode (default: 2)
+AAR_MULTI_SOURCE_MAX_PROVIDERS_PER_QUERY=2
+
+# Early-exit threshold: stop after we have at least N candidates from the first providers (default: 4)
+AAR_MULTI_SOURCE_MIN_RESULTS_PER_QUERY=4
+
+# Circuit breaker cooldown (seconds) for providers returning 429/5xx (default: 300)
+AAR_SOURCE_COOLDOWN_S=300
+
+# Optional stock video providers (legal for YouTube output; requires API keys)
+# If keys are empty, providers are automatically disabled.
+PEXELS_API_KEY=
+PIXABAY_API_KEY=
+
+# Stock tuning (optional)
+# - Limit max vertical resolution for faster downloads (default: 720)
+AAR_STOCK_MAX_HEIGHT=720
+# - Pixabay quality: large|medium|small|tiny (default: medium)
+AAR_PIXABAY_QUALITY=medium
+# - Enable stock sources even if keys exist (default: 1 if key present, else 0)
+AAR_ENABLE_STOCK_SOURCES=0
+
+# === EPISODE-FIRST POOL MODE (AAR efficiency) ===
+# Místo stovek API queries pro každou scénu, stáhne materiály pro celou epizodu najednou
+# VÝSLEDEK: 10-20x rychlejší, 95% méně API calls, stejná kvalita
+# Default: 1 (enabled)
+AAR_EPISODE_POOL_MODE=1
+
+# Maximální počet unikátních videí pro celou epizodu (default: 2)
+# POZNÁMKA: Videa se stahují pomalu, preferujeme obrázky
+AAR_POOL_MAX_VIDEOS=2
+
+# Maximální počet unikátních obrázků pro celou epizodu (default: 30)
+# Obrázky: rychlé stahování + Ken Burns efekt = profesionální výsledek
+AAR_POOL_MAX_IMAGES=30
+
+# === VISUAL ASSISTANT (LLM-based asset selection) ===
+# Automaticky spustí Visual Assistant po Episode Pool pro LLM výběr nejlepších assetů
+# Používá GPT-4 Vision API k analýze thumbnailů a výběru nejlepšího kandidáta per beat
+# Default: 0 (manual - použij tlačítko v UI)
+# DOPORUČENO: 1 (automatic) pro produkci, 0 pro rychlé testování
+AAR_AUTO_VISUAL_ASSISTANT=1
+
+# Pro vypnutí Episode-First mode a použití legacy per-scene režimu:
+# AAR_EPISODE_POOL_MODE=0
+
+# ============================================================
+# TOPIC INTELLIGENCE ASSISTANT (USA/EN) - ISOLATED FEATURE
+# ============================================================
+# Enable manual topic research feature (isolated from pipeline)
+# This feature generates USA/EN-focused topic recommendations using:
+# - Wikipedia Pageviews (official API, no key required)
+# - YouTube competition analysis (requires YouTube API key)
+# - Google Trends (MVP: placeholder, future integration)
+TOPIC_INTEL_ENABLED=true
+
+# Wikipedia Pageviews API base URL (official, no authentication required)
+WIKIPEDIA_API_BASE_URL=https://wikimedia.org/api/rest_v1/metrics/pageviews/
+
+# Google Trends API configuration (MVP: not configured)
+# Future: Add pytrends or official Google Trends API integration here
+# GOOGLE_TRENDS_ENABLED=false
+
+# Topic intelligence cache TTL in seconds (default: 10800 = 3 hours)
+# Signals are cached to avoid hitting rate limits on repeated requests
+TOPIC_INTEL_CACHE_TTL=10800

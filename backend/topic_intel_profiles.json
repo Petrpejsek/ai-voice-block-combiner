@@ -1,0 +1,105 @@
+{
+  "profiles": [
+    {
+      "id": "us_history_docs",
+      "name": "US History Docs",
+      "locale": "US",
+      "language": "en-US",
+      "content_type": "history_docs",
+      "must_fit_topics": [
+        "turning points",
+        "empires",
+        "betrayals",
+        "disasters",
+        "trials",
+        "mysteries",
+        "historical figures",
+        "wars",
+        "revolutions",
+        "discoveries"
+      ],
+      "must_avoid_topics": [
+        "graphic gore",
+        "extremist propaganda",
+        "explicit violence details",
+        "modern politics",
+        "partisan issues"
+      ],
+      "style_notes": "Documentary style with thriller/mystery framing. Focus on dramatic narrative arcs, untold angles, and 'what really happened' framing. Emphasize human drama behind historical events.",
+      "archetype_weights": {
+        "Final Days / Last Hours": 1.0,
+        "Betrayal & Power": 1.0,
+        "Forbidden / Hidden History": 0.9,
+        "Disaster as Thriller": 1.0,
+        "Trial / Execution / Scandal": 0.9,
+        "Mystery / Vanished": 1.0,
+        "War Turning Points": 0.8,
+        "Empire Collapse": 1.0,
+        "Genius vs. System": 0.7,
+        "Plagues & Panic": 0.8,
+        "Conspiracy (Evidence-based)": 0.6,
+        "Survival Stories": 0.7
+      },
+      "avoid_topics": [
+        "Holocaust denial",
+        "genocide glorification",
+        "extremist ideologies",
+        "graphic violence details",
+        "torture descriptions"
+      ]
+    },
+    {
+      "id": "us_true_crime",
+      "name": "US True Crime",
+      "locale": "US",
+      "language": "en-US",
+      "content_type": "true_crime",
+      "must_fit_topics": [
+        "investigations",
+        "timelines",
+        "courtroom drama",
+        "disappearances",
+        "fraud cases",
+        "cult cases",
+        "cold cases",
+        "forensics",
+        "detective work",
+        "unsolved mysteries"
+      ],
+      "must_avoid_topics": [
+        "explicit gore",
+        "victim-blaming",
+        "doxxing",
+        "private individuals without consent",
+        "active ongoing cases",
+        "glorification of criminals"
+      ],
+      "style_notes": "True crime documentary with investigative journalism approach. Focus on timeline reconstruction, evidence analysis, and 'how they caught them' angles. Respectful to victims, emphasis on justice and resolution.",
+      "archetype_weights": {
+        "Final Days / Last Hours": 0.6,
+        "Betrayal & Power": 0.8,
+        "Forbidden / Hidden History": 0.7,
+        "Disaster as Thriller": 0.5,
+        "Trial / Execution / Scandal": 1.0,
+        "Mystery / Vanished": 1.0,
+        "War Turning Points": 0.3,
+        "Empire Collapse": 0.4,
+        "Genius vs. System": 0.8,
+        "Plagues & Panic": 0.4,
+        "Conspiracy (Evidence-based)": 0.9,
+        "Survival Stories": 0.9
+      },
+      "avoid_topics": [
+        "graphic crime scene details",
+        "torture descriptions",
+        "child victims (graphic details)",
+        "sexual violence details",
+        "real names of minors",
+        "ongoing investigations"
+      ]
+    }
+  ]
+}
+
+
+

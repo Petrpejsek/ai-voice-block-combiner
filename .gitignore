@@ -79,4 +79,9 @@ Thumbs.db
 
 # API keys (safety)
 *.key
-api_keys.txt 
+api_keys.txt
+
+# Google Cloud secrets
+/backend/secrets/*.json
+/backend/secrets/*service*.json
+/backend/secrets/*key*.json 

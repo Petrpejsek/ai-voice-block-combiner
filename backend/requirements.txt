@@ -6,5 +6,15 @@ requests==2.31.0
 python-dotenv==1.0.0
 openai==1.54.0
 
+# Video generování závislosti
+moviepy>=1.0.3
+pillow>=10.2.0
+numpy>=1.24.3
+imageio>=2.31.1
+imageio-ffmpeg>=0.4.8
+
+# Google Cloud Text-to-Speech (REST API přístup)
+google-auth>=2.16.0
+
 # Poznámka: Pro video generování je také potřeba ffmpeg
 # Instalace: brew install ffmpeg (macOS) nebo apt install ffmpeg (Ubuntu) 

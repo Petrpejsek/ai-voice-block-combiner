@@ -1,0 +1,383 @@
+# AI Voice Block Combiner - Cursor Project Rules
+
+## 🎯 Projekt Overview
+Pokročilá webová aplikace pro AI generování hlasů, kombinování audio a tvorbu videí s použitím ElevenLabs TTS, OpenAI API, MoviePy a FFmpeg.
+
+## 🏗️ Architektura
+- **Backend:** Python Flask (port 50000)
+- **Frontend:** React 18 + Tailwind CSS (port 4000)
+- **APIs:** ElevenLabs TTS, OpenAI GPT-4o/DALL-E
+- **Video/Audio:** MoviePy, FFmpeg, pydub
+
+## 📁 Struktura projektu
+```
+podcasts/
+├── backend/               # Python Flask server
+│   ├── app.py            # Hlavní Flask aplikace
+│   ├── gpt_utils.py      # OpenAI/DALL-E utilities
+│   └── requirements.txt  # Python dependencies
+├── frontend/             # React aplikace
+│   ├── src/
+│   │   ├── App.js       # Hlavní React komponenta
+│   │   └── components/  # Modulární komponenty
+│   └── package.json     # Node dependencies
+├── uploads/             # Input soubory
+├── output/              # Vygenerované soubory
+└── images/              # DALL-E generované obrázky
+```
+
+## 🔧 Development Workflow
+
+### Startup sekvence
+```bash
+# Terminal 1 - Backend
+cd backend && python3 app.py  # Port 50000
+
+# Terminal 2 - Frontend
+cd frontend && PORT=4000 npm start  # Port 4000
+```
+
+### Environment setup
+- Vždy používej `.env` soubor v `backend/` pro API klíče
+- Nikdy necommituj API klíče do gitu
+- Používej `env_example.txt` jako template
+
+## 💻 Coding Standards
+
+### Python Backend
+```python
+# ✅ Správné importy a error handling
+try:
+    from moviepy import ImageClip, VideoClip
+    MOVIEPY_AVAILABLE = True
+    print("✅ MoviePy knihovny úspěšně načteny")
+except ImportError as e:
+    print(f"❌ Chyba při importu MoviePy: {e}")
+    MOVIEPY_AVAILABLE = False
+
+# ✅ Vždy použij secure_filename pro uploads
+from werkzeug.utils import secure_filename
+filename = secure_filename(file.filename)
+
+# ✅ Timeout ochrana pro dlouhé operace
+@app.route('/api/process-video', methods=['POST'])
+def process_video():
+    try:
+        # Prodloužené timeout pro velké projekty
+        result = subprocess.run(cmd, timeout=1800, capture_output=True)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Zpracování trvalo příliš dlouho"}), 408
+```
+
+### React Frontend
+```jsx
+// ✅ Používej funkční komponenty s hooks
+import React, { useState, useEffect } from 'react';
+
+// ✅ Axios konfigurace s timeouty
+const api = axios.create({
+  baseURL: 'http://localhost:50000',
+  timeout: 1800000, // 30 minut pro velké projekty
+});
+
+// ✅ Error boundary pro robustní error handling
+const [error, setError] = useState('');
+const [isProcessing, setIsProcessing] = useState(false);
+
+// ✅ Modulární komponenty
+import VideoProductionPipeline from './components/VideoProductionPipeline';
+```
+
+## 🎤 ElevenLabs TTS Integration
+
+### Voice Generation Best Practices
+```python
+# ✅ Batch zpracování s retry mechanikou
+def generate_voice_batch(voice_blocks, api_key):
+    for voice_id, text in voice_blocks.items():
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=60)
+            if response.status_code == 200:
+                # Success handling
+        except requests.exceptions.Timeout:
+            # Retry logic
+        except requests.exceptions.RequestException:
+            # Error handling
+```
+
+### Voice Mapping
+- Používej konzistentní voice_id pro každou postavu
+- Tesla_01, Tesla_02 → stejný voice_id
+- Socrates_01, Socrates_02 → jiný voice_id
+- Auto-sorting: Tesla_01 → Socrates_01 → Tesla_02...
+
+## 🎬 Video/Audio Processing
+
+### MoviePy Operations
+```python
+# ✅ Ken Burns efekt s animací
+def create_ken_burns_effect(image_path, duration, target_width, target_height):
+    if not MOVIEPY_AVAILABLE:
+        raise Exception("MoviePy není dostupné")
+    
+    clip = ImageClip(image_path, duration=duration)
+    # Implementace zoom/pan efektů
+    return clip.with_effects([zoom_effect, pan_effect])
+
+# ✅ Memory management pro velké soubory
+clip.close()  # Vždy uzavři clips po použití
+```
+
+### Audio Processing
+```python
+# ✅ pydub pro audio kombinování
+from pydub import AudioSegment
+
+def combine_audio_files(files, pause_ms=600):
+    combined = AudioSegment.empty()
+    for file in files:
+        audio = AudioSegment.from_file(file)
+        combined += audio + AudioSegment.silent(duration=pause_ms)
+    return combined
+```
+
+## 🛡️ Security & Error Handling
+
+### API Key Management
+```python
+# ✅ Environment variables
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+api_key = os.getenv('ELEVENLABS_API_KEY')
+if not api_key:
+    raise ValueError("ElevenLabs API klíč není nastaven")
+```
+
+### Robust Error Handling
+```python
+# ✅ Try-catch s specifickými exceptions
+try:
+    result = process_video(file)
+except subprocess.TimeoutExpired:
+    return jsonify({"error": "Timeout - soubor je příliš velký"}), 408
+except FileNotFoundError:
+    return jsonify({"error": "FFmpeg není nainstalován"}), 500
+except Exception as e:
+    logger.error(f"Neočekávaná chyba: {str(e)}")
+    return jsonify({"error": "Vnitřní chyba serveru"}), 500
+```
+
+## 📊 Performance Optimizations
+
+### Memory Management
+- Používej `clip.close()` po MoviePy operacích
+- Limituj max velikost uploadů (100MB)
+- Implementuj progress tracking pro dlouhé operace
+
+### Timeout Configurations
+```javascript
+// Frontend - prodloužené timeouty
+const api = axios.create({
+  timeout: 1800000  // 30 minut pro velké projekty
+});
+
+// Backend - subprocess timeouts
+subprocess.run(..., timeout=1800)  // 30 minut
+```
+
+## 🧪 Testing Guidelines
+
+### API Testing
+```bash
+# Health check
+curl http://localhost:50000/api/health
+
+# Voice generation test
+curl -X POST http://localhost:50000/api/generate-voices \
+  -H "Content-Type: application/json" \
+  -d '{"voice_blocks": {...}, "api_key": "..."}'
+```
+
+### Development Testing
+- Vždy testuj s malými soubory first
+- Ověř FFmpeg instalaci: `ffmpeg -version`
+- Test ElevenLabs API connectivity před batch operacemi
+
+## 🚫 Common Pitfalls & Solutions
+
+### Backend Issues
+```python
+# ❌ Nekontrolované memory usage
+clip = VideoClip(...)  # Bez close()
+
+# ✅ Správný memory management
+clip = VideoClip(...)
+try:
+    result = clip.process()
+finally:
+    clip.close()
+
+# ❌ Chybějící timeout
+subprocess.run(cmd)  # Může viset nekonečně
+
+# ✅ S timeout ochranou
+subprocess.run(cmd, timeout=1800)
+```
+
+### Frontend Issues
+```jsx
+// ❌ Krátké timeouty pro velké soubory
+axios.post(url, data, { timeout: 5000 })
+
+// ✅ Odpovídající timeout pro operaci
+axios.post(url, data, { timeout: 1800000 })
+
+// ❌ Chybějící progress indikátor
+const [isProcessing, setIsProcessing] = useState(false);
+
+// ✅ S progress tracking
+const [isProcessing, setIsProcessing] = useState(false);
+const [progress, setProgress] = useState(0);
+```
+
+## 📝 File Management
+
+### Supported Formats
+- **Audio:** MP3, WAV, M4A
+- **Images:** PNG, JPG, JPEG (backgrounds)
+- **Video:** MP4, MOV (video backgrounds)
+- **Subtitles:** SRT
+
+### File Organization
+```
+uploads/
+├── backgrounds/        # Obrázky pozadí
+├── video_backgrounds/ # Video pozadí
+└── *.mp3             # Audio soubory
+
+output/
+├── combined_*.mp3    # Kombinované audio
+├── final_*.mp4       # Finální videa
+└── *.srt            # Generované titulky
+```
+
+## 🔄 Development Commands
+
+### Quick Start
+```bash
+# Restart celé aplikace
+./start.sh
+
+# Backend only restart
+cd backend && python3 app.py
+
+# Frontend only restart
+cd frontend && PORT=4000 npm start
+```
+
+### Debug Commands
+```bash
+# Backend logs
+cd backend && FLASK_ENV=development python3 app.py
+
+# Frontend s hot reload
+cd frontend && npm start
+
+# FFmpeg test
+ffmpeg -version && echo "✅ FFmpeg OK" || echo "❌ FFmpeg Missing"
+```
+
+## 🔍 Dependencies Monitoring
+
+### Critical Dependencies
+- **Python:** 3.8+ (backend compatibility)
+- **Node.js:** 16+ (React 18 requirement)
+- **FFmpeg:** 4.0+ (video/audio processing)
+- **MoviePy:** Latest (video effects)
+- **pydub:** Latest (audio processing)
+
+### Regular Updates
+```bash
+# Backend dependencies update
+cd backend && pip freeze > requirements.txt
+
+# Frontend dependencies audit
+cd frontend && npm audit && npm update
+```
+
+## 🎯 Performance Targets
+
+### Response Times
+- **Small files (<10MB):** < 30 sekund
+- **Medium files (10-50MB):** < 2 minuty
+- **Large projects (120+ files):** < 20 minut
+
+### Memory Usage
+- **Minimum RAM:** 4GB
+- **Recommended RAM:** 8GB+
+- **Storage:** SSD doporučeno
+
+## 🔧 Integration Points
+
+### ElevenLabs API
+- Rate limiting: respektuj API limits
+- Error codes: handle 429 (rate limit), 401 (auth), 500 (server)
+- Retry strategy: exponential backoff
+
+### OpenAI Integration
+- Model: gpt-4o (default)
+- Response format: JSON objects
+- Temperature: 0.7 (balanced creativity)
+- Max tokens: 4000
+
+### FFmpeg Pipeline
+- Input validation před zpracováním
+- Progress callbacks pro UI feedback
+- Error parsing z stderr output
+- Cleanup temporary files
+
+## 📚 Documentation Requirements
+
+### Code Comments
+```python
+def create_ken_burns_effect(image_path, duration, effect_type=0):
+    """
+    Vytvoří Ken Burns efekt s animací
+    
+    Args:
+        image_path (str): Cesta k obrázku
+        duration (float): Délka efektu v sekundách
+        effect_type (int): 0=zoom_in, 1=zoom_out, 2=pan_left, 3=pan_right
+    
+    Returns:
+        VideoClip: MoviePy clip s animací
+    """
+```
+
+### Error Messages
+- Českých error messages pro uživatele
+- Anglické technické logy pro debugging
+- Specific error codes pro API responses
+
+## 🚀 Deployment Considerations
+
+### Production Readiness
+- Environment variables pro všechny API klíče
+- CORS konfigurace pro production
+- Nginx/Apache reverse proxy setup
+- SSL certificates pro HTTPS
+- Database backup strategy (pokud použito)
+
+### Monitoring
+- API response times tracking
+- Error rate monitoring
+- Memory usage alerts
+- Disk space monitoring (output folder)
+
+---
+
+**Poslední aktualizace:** Červenec 2025
+**Kompatibilita:** Python 3.8+, Node.js 16+, FFmpeg 4.0+
+**Ports:** Frontend 4000, Backend 50000 

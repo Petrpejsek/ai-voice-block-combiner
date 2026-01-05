@@ -1,0 +1,123 @@
+```mermaid
+flowchart TD
+    Start([Script + TTS Package]) --> FDA[Footage Director Assistant v2.7]
+    
+    FDA --> |shot_plan JSON| Sanitizer[Pre-FDA Sanitizer]
+    Sanitizer --> |Cleaned keywords + queries| Validator[FDA Output Validator]
+    
+    Validator --> |✅ Valid| AAR_Start{Episode Pool Mode?}
+    Validator --> |❌ Invalid| FDA_Fail[Hard Fail: FDA_VALIDATION_ERROR]
+    
+    AAR_Start --> |Yes - Default| AAR_Pool[AAR: Episode Pool Search]
+    AAR_Start --> |No - Legacy| AAR_Scene[AAR: Per-Scene Search]
+    
+    AAR_Pool --> |Episode-level queries| Multi_Search[Multi-Source Search]
+    AAR_Scene --> |Per-scene queries| Multi_Search
+    
+    Multi_Search --> Archive[Archive.org Search]
+    Multi_Search --> Wikimedia[Wikimedia Commons Search]
+    Multi_Search --> Europeana[Europeana Search]
+    Multi_Search --> Pexels[Pexels API]
+    Multi_Search --> Pixabay[Pixabay API]
+    
+    Archive --> |Raw results| License_Gate_1[License Gate: Archive.org]
+    Wikimedia --> |Raw results| License_Gate_2[License Gate: Wikimedia]
+    Europeana --> |Raw results| License_Gate_3[License Gate: Europeana]
+    Pexels --> |Raw results| License_Gate_4[Stock: Pexels hardcoded]
+    Pixabay --> |Raw results| License_Gate_5[Stock: Pixabay hardcoded]
+    
+    License_Gate_1 --> |YouTube-safe only| Merge[Merge & Dedup by item_id]
+    License_Gate_2 --> |YouTube-safe only| Merge
+    License_Gate_3 --> |YouTube-safe only| Merge
+    License_Gate_4 --> |Always safe opt-in| Merge
+    License_Gate_5 --> |Always safe opt-in| Merge
+    
+    Merge --> |All candidates| Topic_Val[LLM Topic Relevance Validator]
+    Topic_Val --> |Filter off-topic| VA_Check{Visual Assistant Enabled?}
+    
+    VA_Check --> |Yes - Default| VA_Dedup[Visual Assistant: Deduplication Phase]
+    VA_Check --> |No - Manual| Script_Dedup[Script-based Dedup]
+    
+    VA_Dedup --> |Group similar thumbnails| VA_Rank[Visual Assistant: Quality Ranking]
+    Script_Dedup --> |Hash-based dedup| Select_Pool
+    
+    VA_Rank --> |Score: relevance × quality| Select_Pool[Select Top N]
+    
+    Select_Pool --> |Max 8 videos + 15 images| Pool_Ready[Episode Pool Ready]
+    
+    Pool_Ready --> Beat_Assign[Per-Beat Asset Assignment]
+    Beat_Assign --> |3-5 candidates per beat| Manifest_Write[Write archive_manifest.json]
+    
+    Manifest_Write --> CB_Start[Compilation Builder: Download Phase]
+    
+    CB_Start --> Download{Download from Cache?}
+    Download --> |Cache Hit| Validate_Media[Validate Media Quality]
+    Download --> |Cache Miss| Fetch[Fetch from Source]
+    
+    Fetch --> |Archive.org| Fetch_Archive[Download .mp4 via metadata API]
+    Fetch --> |Wikimedia| Fetch_Wiki[Download direct CDN URL]
+    Fetch --> |Stock| Fetch_Stock[Download direct CDN URL]
+    Fetch --> |Local| Fetch_Local[Load from images/ directory]
+    
+    Fetch_Archive --> Cache_Store[Store in projects/ep/assets/]
+    Fetch_Wiki --> Cache_Store
+    Fetch_Stock --> Cache_Store
+    Fetch_Local --> Validate_Media
+    
+    Cache_Store --> Validate_Media
+    
+    Validate_Media --> Quality_Check{Quality Gates}
+    Quality_Check --> |ffprobe resolution| Res_Check{≥ 960×540?}
+    Quality_Check --> |Video stream| Stream_Check{has_video=true?}
+    Quality_Check --> |Frame sampling| Frame_Check{< 60% blackish?}
+    
+    Res_Check --> |❌ Fail| Reject_Asset[Reject: low_resolution]
+    Stream_Check --> |❌ Fail| Reject_Asset
+    Frame_Check --> |❌ Fail| Reject_Asset[Reject: mostly_black]
+    
+    Res_Check --> |✅ Pass| Extract_Subclip[Extract Subclip via FFmpeg]
+    Stream_Check --> |✅ Pass| Extract_Subclip
+    Frame_Check --> |✅ Pass| Extract_Subclip
+    
+    Extract_Subclip --> |Beat duration target| Ken_Burns{Media Type?}
+    Ken_Burns --> |Image| Apply_KB[Apply Ken Burns Effect]
+    Ken_Burns --> |Video| Select_Segment[Select Non-blackish Segment]
+    
+    Apply_KB --> Subclip_Ready[Subclip Ready]
+    Select_Segment --> Subclip_Ready
+    
+    Subclip_Ready --> More_Beats{More Beats?}
+    More_Beats --> |Yes| CB_Start
+    More_Beats --> |No| Coverage_Check{Visual Coverage ≥ 50%?}
+    
+    Coverage_Check --> |❌ < 50%| CB_Fail[Hard Fail: CB_CRITICAL_NO_VISUAL_ASSETS]
+    Coverage_Check --> |✅ ≥ 50%| FFmpeg_Concat[FFmpeg Concat All Subclips]
+    
+    FFmpeg_Concat --> Add_Audio[Merge Voiceover Audio]
+    Add_Audio --> Add_Subtitles[Add Subtitles from TTS blocks]
+    Add_Subtitles --> Encode[Encode: libx264 CRF 23 + AAC]
+    
+    Encode --> Final_Video[Final MP4: output/episode_id.mp4]
+    Final_Video --> Export[Export to YouTube / Renderer]
+    
+    Reject_Asset --> |Try next candidate| Download
+    Reject_Asset --> |All candidates failed| Fallback{Local Safety Pack?}
+    Fallback --> |Available| Fetch_Local
+    Fallback --> |Unavailable| CB_Fail
+    
+    style Start fill:#e1f5fe
+    style Final_Video fill:#c8e6c9
+    style Export fill:#c8e6c9
+    style FDA_Fail fill:#ffcdd2
+    style CB_Fail fill:#ffcdd2
+    style License_Gate_1 fill:#fff9c4
+    style License_Gate_2 fill:#fff9c4
+    style License_Gate_3 fill:#fff9c4
+    style Topic_Val fill:#f3e5f5
+    style VA_Dedup fill:#f3e5f5
+    style VA_Rank fill:#f3e5f5
+    style Quality_Check fill:#ffe0b2
+    style Coverage_Check fill:#ffe0b2
+```
+
+

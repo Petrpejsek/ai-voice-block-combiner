@@ -13,13 +13,7 @@ const AssistantManager = ({ onRefreshNeeded }) => {
   const [showHidden, setShowHidden] = useState(false);
   const [hiddenCount, setHiddenCount] = useState(0);
 
-  // Načti API klíč z localStorage při načtení komponenty
-  useEffect(() => {
-    const savedApiKey = localStorage.getItem('openai_api_key');
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-    }
-  }, []);
+  // OpenAI API key is server-side only; do not read from localStorage.
 
   // Automaticky načti asistenty když je API klíč k dispozici
   useEffect(() => {

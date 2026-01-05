@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import FileUploader from './components/FileUploader';
 import VoiceGenerator from './components/VoiceGenerator';
 import VideoProductionPipeline from './components/VideoProductionPipeline';
+import VoiceGenerationQueue from './components/VoiceGenerationQueue';
 import BackgroundUploader from './components/BackgroundUploader';
 import VideoBackgroundUploader from './components/VideoBackgroundUploader';
-import AssistantManager from './components/AssistantManager';
+import VideoGenerationSimple from './components/VideoGenerationSimple';
+import MusicLibraryModal from './components/MusicLibraryModal';
+import TopicIntelligencePanel from './components/TopicIntelligencePanel';
+import { toDisplayString } from './utils/display';
+// import AssistantManager from './components/AssistantManager'; // ODSTRANĚNO - nepoužíváme automatické načítání asistentů
 
 function App() {
-  // Stavy aplikace
+  // Stavy aplikace - POUZE PRO AKTIVNÍ KOMPONENTY
+  // (některé deprecated states ponechány kvůli {false && ()} blokům)
   const [audioFiles, setAudioFiles] = useState([]);
   const [introFile, setIntroFile] = useState(null);
   const [outroFile, setOutroFile] = useState(null);
@@ -25,27 +31,28 @@ function App() {
   const [selectedVideoBackground, setSelectedVideoBackground] = useState(null);
   const [useVideoBackground, setUseVideoBackground] = useState(false);
   
-  // OpenAI Asistenti stavy - POZOR: Nepoužité po odstranění rychlého testu
+  // OpenAI Asistenti stavy
   // eslint-disable-next-line no-unused-vars
   const [selectedAssistant, setSelectedAssistant] = useState('general');
-  const [assistantPrompt, setAssistantPrompt] = useState('');
   // eslint-disable-next-line no-unused-vars
   const [assistantResponse, setAssistantResponse] = useState('');
   // eslint-disable-next-line no-unused-vars
   const [isAssistantLoading, setIsAssistantLoading] = useState(false);
 
-  // Nové modaly stavy
+  // Modaly stavy
   const [showAddAssistantModal, setShowAddAssistantModal] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showVideoGenerationModal, setShowVideoGenerationModal] = useState(false);
+  const [showMusicLibraryModal, setShowMusicLibraryModal] = useState(false);
   const [apiTestResults, setApiTestResults] = useState(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
   
-  // DALL-E stavy
+  // DALL-E stavy (používáno v skrytých sekcích)
   const [dallePrompt, setDallePrompt] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
   
-  // Test OpenAI Assistants stavy
+  // Test OpenAI Assistants stavy (používáno v skrytých sekcích)
   const [selectedTestAssistant, setSelectedTestAssistant] = useState('');
   const [testAssistantPrompt, setTestAssistantPrompt] = useState('Ahoj, kdo jsi?');
   const [isTestingAssistant, setIsTestingAssistant] = useState(false);
@@ -54,15 +61,15 @@ function App() {
   const [newAssistantName, setNewAssistantName] = useState('');
   const [newAssistantId, setNewAssistantId] = useState('');
   const [newAssistantDescription, setNewAssistantDescription] = useState('');
-  const [newAssistantCategory, setNewAssistantCategory] = useState('podcast'); // Nový stav pro kategorii
+  const [newAssistantCategory, setNewAssistantCategory] = useState('podcast');
   // API klíče stav
-  const [openaiApiKey, setOpenaiApiKey] = useState(() => {
-    try {
-      return localStorage.getItem('openai_api_key') || '';
-    } catch (error) {
-      return '';
-    }
-  });
+  // OpenAI key is server-side only; UI holds only transient input (never persisted client-side).
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [openaiConfigured, setOpenaiConfigured] = useState(false);
+  const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+  const [openrouterConfigured, setOpenrouterConfigured] = useState(false);
+  const [elevenlabsConfiguredServer, setElevenlabsConfiguredServer] = useState(false);
+  const [youtubeConfiguredServer, setYoutubeConfiguredServer] = useState(false);
   
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState(() => {
     try {
@@ -80,10 +87,145 @@ function App() {
     }
   });
 
+  // Server-side OpenAI status (never fetches key)
+  const refreshOpenAiStatus = async () => {
+    try {
+      const res = await axios.get('/api/settings/openai_status', { timeout: 20000 });
+      if (res.data?.success) {
+        setOpenaiConfigured(!!res.data.configured);
+      } else {
+        setOpenaiConfigured(false);
+      }
+    } catch (e) {
+      setOpenaiConfigured(false);
+    }
+  };
+
+  const refreshElevenLabsStatus = async () => {
+    try {
+      const res = await axios.get('/api/settings/elevenlabs_status', { timeout: 20000 });
+      setElevenlabsConfiguredServer(!!res.data?.configured);
+    } catch (e) {
+      setElevenlabsConfiguredServer(false);
+    }
+  };
+
+  const refreshOpenRouterStatus = async () => {
+    try {
+      const res = await axios.get('/api/settings/openrouter_status', { timeout: 20000 });
+      setOpenrouterConfigured(!!res.data?.configured);
+    } catch (e) {
+      setOpenrouterConfigured(false);
+    }
+  };
+
+  const refreshYoutubeStatus = async () => {
+    try {
+      const res = await axios.get('/api/settings/youtube_status', { timeout: 20000 });
+      setYoutubeConfiguredServer(!!res.data?.configured);
+    } catch (e) {
+      setYoutubeConfiguredServer(false);
+    }
+  };
+
+  const saveOpenAiKeyServerSide = async () => {
+    if (!openaiApiKey.trim()) {
+      setError('Zadejte OpenAI API klíč');
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/settings/openai_key',
+        { openai_api_key: openaiApiKey.trim() },
+        { timeout: 20000 }
+      );
+      if (!res.data?.success) {
+        throw new Error(res.data?.error || 'Nepodařilo se uložit OpenAI API klíč na server');
+      }
+      setOpenaiApiKey(''); // never show back
+      setResult({ success: true, message: 'OpenAI API klíč uložen na server ✅' });
+      await refreshOpenAiStatus();
+    } catch (e) {
+      setError(e.message || 'Chyba při ukládání OpenAI API klíče');
+    }
+  };
+
+  const saveOpenRouterKeyServerSide = async () => {
+    if (!openrouterApiKey.trim()) {
+      setError('Zadejte OpenRouter API klíč');
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/settings/openrouter_key',
+        { openrouter_api_key: openrouterApiKey.trim() },
+        { timeout: 20000 }
+      );
+      if (!res.data?.success) {
+        throw new Error(res.data?.error || 'Nepodařilo se uložit OpenRouter API klíč na server');
+      }
+      setOpenrouterApiKey('');
+      setResult({ success: true, message: 'OpenRouter API klíč uložen na server ✅' });
+      await refreshOpenRouterStatus();
+    } catch (e) {
+      setError(e.message || 'Chyba při ukládání OpenRouter API klíče');
+    }
+  };
+
+  useEffect(() => {
+    refreshOpenAiStatus();
+    refreshOpenRouterStatus();
+    refreshElevenLabsStatus();
+    refreshYoutubeStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveElevenLabsKeyServerSide = async () => {
+    if (!elevenlabsApiKey.trim()) {
+      setError('Zadejte ElevenLabs API klíč');
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/settings/elevenlabs_key',
+        { elevenlabs_api_key: elevenlabsApiKey.trim() },
+        { timeout: 20000 }
+      );
+      if (!res.data?.success) throw new Error(res.data?.error || 'Nepodařilo se uložit ElevenLabs API klíč na server');
+      setResult({ success: true, message: 'ElevenLabs API klíč uložen na server ✅' });
+      await refreshElevenLabsStatus();
+    } catch (e) {
+      setError(e.message || 'Chyba při ukládání ElevenLabs API klíče');
+    }
+  };
+
+  const saveYoutubeKeyServerSide = async () => {
+    if (!youtubeApiKey.trim()) {
+      setError('Zadejte YouTube API klíč');
+      return;
+    }
+    try {
+      const res = await axios.post(
+        '/api/settings/youtube_key',
+        { youtube_api_key: youtubeApiKey.trim() },
+        { timeout: 20000 }
+      );
+      if (!res.data?.success) throw new Error(res.data?.error || 'Nepodařilo se uložit YouTube API klíč na server');
+      setResult({ success: true, message: 'YouTube API klíč uložen na server ✅' });
+      await refreshYoutubeStatus();
+    } catch (e) {
+      setError(e.message || 'Chyba při ukládání YouTube API klíče');
+    }
+  };
+
     // YouTube projekty stavy
   const [showYouTubeModal, setShowYouTubeModal] = useState(false);
   const [selectedYouTubeProject, setSelectedYouTubeProject] = useState(null);
   const [showUploadConfirm, setShowUploadConfirm] = useState(false);
+
+  // Nový stav pro kontrolu textu před generováním hlasů
+  const [pendingProject, setPendingProject] = useState(null);
+  const [showTextReview, setShowTextReview] = useState(false);
 
   // Mock data pro YouTube projekty
   const mockYouTubeProjects = [
@@ -149,54 +291,7 @@ function App() {
     }
   ];
 
-  // Mock data pro demonstraci
-  const mockProjects = [
-    {
-      id: 1,
-      title: "Jak vytvořit úspěšný podcast",
-      assistant_type: "podcast", 
-      original_prompt: "Navrhni mi kompletní průvodce jak začít úspěšný podcast",
-      response: "Vytvoření úspěšného podcastu vyžaduje pečlivé plánování a konzistentní práci. Začněte výběrem tématu, které vás skutečně zajímá a v kterém máte expertise. Definujte svou cílovou skupinu a typ obsahu. Investujte do kvalitního mikrofonu a naučte se základy editace zvuku. Vytvořte konzistentní harmonogram vydávání a budujte komunitu kolem svého obsahu. Nezapomeňte na marketing a propagaci na sociálních sítích.",
-      character_count: 1247,
-      created_at: "2025-07-03T10:30:00.000Z",
-      preview: "Vytvoření úspěšného podcastu vyžaduje pečlivé plánování a konzistentní práci. Začněte výběrem tématu..."
-    },
-    {
-      id: 2,
-      title: "Technický návod na React hooks",
-      assistant_type: "technical",
-      original_prompt: "Vysvětli mi React hooks a kdy je použít",
-      response: "React Hooks jsou funkce, které umožňují používat state a další React funkcionality ve funkčních komponentách. Nejčastěji používané hooks jsou useState pro správu lokálního stavu, useEffect pro side effects a lifecycle metody. UseContext umožňuje přístup k Context API, useMemo a useCallback optimalizují výkon. Hooks musí být volány vždy ve stejném pořadí a pouze na top-level funkce.",
-      character_count: 892,
-      created_at: "2025-07-03T09:15:00.000Z", 
-      preview: "React Hooks jsou funkce, které umožňují používat state a další React funkcionality ve funkčních..."
-    },
-    {
-      id: 3,
-      title: "Kreativní nápady pro video obsah",
-      assistant_type: "creative",
-      original_prompt: "Potřebuji kreativní nápady na video obsah pro YouTube",
-      response: "Pro YouTube obsah zkuste formáty jako 'Den v životě', tutoriály, reaction videa, nebo Q&A s followers. Populární jsou také challenge videa, behind-the-scenes obsah, a kolaborace s jinými tvůrci. Experimentujte s různými žánry - komedi, edukace, lifestyle. Používejte trendy hashtags a aktuální témata. Investujte do kvalitního thumbnail designu a poutavých titulků. Analyzujte svou cílovou skupinu a přizpůsobte obsah jejich zájmům.",
-      character_count: 1156,
-      created_at: "2025-07-02T16:45:00.000Z",
-      preview: "Pro YouTube obsah zkuste formáty jako 'Den v životě', tutoriály, reaction videa, nebo Q&A s followers..."
-    }
-  ];
-
-  // Vygenerované projekty stavy - načte z localStorage nebo použije mock data
-  const [generatedProjects, setGeneratedProjects] = useState(() => {
-    try {
-      const saved = localStorage.getItem('generated_projects');
-      const savedProjects = saved ? JSON.parse(saved) : [];
-      // Pokud nejsou žádné uložené projekty, použij mock data
-      return savedProjects.length > 0 ? savedProjects : mockProjects;
-    } catch (error) {
-      console.error('Chyba při načítání projektů z localStorage:', error);
-      return mockProjects; // Fallback na mock data
-    }
-  });
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [showProjectDetail, setShowProjectDetail] = useState(false);
+  // Vygenerované projekty stavy - ODSTRANĚNO (nahrazeno VoiceGenerationQueue)
   
   // Nový stav pro hlasitosti podle voice_id (v dB, 0 = bez změny) - načte z localStorage
   const [voiceVolumes, setVoiceVolumes] = useState(() => {
@@ -211,10 +306,10 @@ function App() {
     }
   });
 
-  // Stav pro propojení Video Production Pipeline -> VoiceGenerator
-  const [autoJsonFromPipeline, setAutoJsonFromPipeline] = useState(null);
+  // Reference na VoiceGenerationQueue komponentu (používá se v skrytých sekcích)
+  const voiceQueueRef = React.useRef(null);
 
-  // Stav pro skryté asistenty
+  // Stavy pro skryté asistenty
   const [hiddenAssistants, setHiddenAssistants] = useState([]);
 
   // Dostupní OpenAI asistenti - načte z localStorage nebo použije výchozí
@@ -237,65 +332,11 @@ function App() {
     ];
   });
 
-  // Funkce pro načtení skrytých asistentů
-  const loadHiddenAssistants = async () => {
-    if (!openaiApiKey) return;
+  // Funkce pro načtení skrytých asistentů - ODSTRANĚNO (jen manuální přidávání)
 
-    try {
-      const response = await fetch('/api/list-hidden-assistants', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          openai_api_key: openaiApiKey
-        }),
-      });
+  // Funkce pro filtrování asistentů - ODSTRANĚNO (jen manuální seznam)
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setHiddenAssistants(data.hidden_assistants?.map(a => a.id) || []);
-      }
-    } catch (err) {
-      console.error('Chyba při načítání skrytých asistentů:', err);
-    }
-  };
-
-  // Funkce pro filtrování viditelných asistentů
-  const getVisibleAssistants = () => {
-    return availableAssistants.filter(assistant => 
-      !hiddenAssistants.includes(assistant.id)
-    );
-  };
-
-  // Načti skryté asistenty při změně API klíče
-  React.useEffect(() => {
-    if (openaiApiKey) {
-      loadHiddenAssistants();
-    }
-  }, [openaiApiKey]);
-
-  // Funkce pro otevření detailu projektu
-  const openProjectDetail = (project) => {
-    setSelectedProject(project);
-    setShowProjectDetail(true);
-  };
-
-  // Funkce pro zavření detailu projektu
-  const closeProjectDetail = () => {
-    setSelectedProject(null);
-    setShowProjectDetail(false);
-  };
-
-  // Funkce pro potvrzení projektu
-  const handleProjectConfirm = (project) => {
-    console.log('Projekt potvrzen:', project);
-    setResult({ 
-      success: true, 
-      message: `Projekt "${project.title}" byl úspěšně potvrzen!` 
-    });
-  };
+  // Funkce pro projekty - ODSTRANĚNO (nahrazeno VoiceGenerationQueue)
 
   // Funkce pro práci s modaly
   const openAddAssistantModal = () => {
@@ -375,7 +416,6 @@ function App() {
   // Funkce pro uložení API klíče
   const handleSaveApiKey = () => {
     try {
-      localStorage.setItem('openai_api_key', openaiApiKey);
       localStorage.setItem('elevenlabs_api_key', elevenlabsApiKey);
       localStorage.setItem('youtube_api_key', youtubeApiKey);
       
@@ -396,15 +436,22 @@ function App() {
     setApiTestResults(null);
     
     try {
-      const response = await axios.post('/api/test-api-connections', {
-        openai_api_key: openaiApiKey,
-        elevenlabs_api_key: elevenlabsApiKey,
-        youtube_api_key: youtubeApiKey
-      }, {
-        timeout: 30000
+      // MVP: OpenAI status is server-side; ElevenLabs/Youtube are local inputs.
+      await refreshOpenAiStatus();
+      setApiTestResults({
+        openai: {
+          status: openaiConfigured ? 'success' : 'error',
+          message: openaiConfigured ? 'Server-side OpenAI API key configured' : 'Server-side OpenAI API key missing'
+        },
+        elevenlabs: {
+          status: elevenlabsApiKey ? 'success' : 'error',
+          message: elevenlabsApiKey ? 'ElevenLabs key present (client-side)' : 'ElevenLabs key missing'
+        },
+        youtube: {
+          status: youtubeApiKey ? 'success' : 'error',
+          message: youtubeApiKey ? 'YouTube key present (client-side)' : 'YouTube key missing'
+        }
       });
-      
-      setApiTestResults(response.data.results);
       
     } catch (err) {
       console.error('Chyba při testování API:', err);
@@ -421,8 +468,8 @@ function App() {
       return;
     }
 
-    if (!openaiApiKey) {
-      setError('OpenAI API klíč není nastaven');
+    if (!openaiConfigured) {
+      setError('OpenAI API klíč není nastaven na serveru');
       return;
     }
 
@@ -433,8 +480,7 @@ function App() {
     try {
       const response = await axios.post('/api/openai-assistant-call', {
         assistant_id: selectedTestAssistant,
-        prompt: testAssistantPrompt,
-        api_key: openaiApiKey
+        prompt: testAssistantPrompt
       }, {
         timeout: 90000 // 90 sekund timeout
       });
@@ -466,8 +512,8 @@ function App() {
       return;
     }
 
-    if (!openaiApiKey) {
-      setError('OpenAI API klíč není nastaven');
+    if (!openaiConfigured) {
+      setError('OpenAI API klíč není nastaven na serveru');
       return;
     }
 
@@ -478,7 +524,6 @@ function App() {
     try {
       const response = await axios.post('/api/generate-image', {
         prompt: dallePrompt,
-        api_key: openaiApiKey,
         size: '1024x1024',
         quality: 'standard'
       }, {
@@ -532,97 +577,8 @@ function App() {
 
   // Funkce pro odeslání promptu OpenAI asistentovi
   // eslint-disable-next-line no-unused-vars
-  const handleSendToAssistant = async () => {
-    if (!assistantPrompt.trim()) {
-      setError('Zadejte prosím prompt pro asistenta');
-      return;
-    }
-
-    if (!openaiApiKey) {
-      setError('OpenAI API klíč není nastaven. Přejděte do API Management.');
-      return;
-    }
-
-    const selectedAssistantData = availableAssistants.find(a => a.id === selectedAssistant);
-    if (!selectedAssistantData) {
-      setError('Vybraný asistent nebyl nalezen');
-      return;
-    }
-
-    setIsAssistantLoading(true);
-    setError('');
-    
-    try {
-      let response;
-      let assistantResponseText;
-
-      // Kontrola, zda je to OpenAI Assistant nebo základní GPT
-      if (selectedAssistantData.type === 'openai_assistant' && selectedAssistantData.id.startsWith('asst_')) {
-        // Volání OpenAI Assistant API
-        response = await axios.post('/api/openai-assistant-call', {
-          assistant_id: selectedAssistantData.id,
-          prompt: assistantPrompt,
-          api_key: openaiApiKey
-        }, {
-          timeout: 90000 // 90 sekund timeout pro Assistant API
-        });
-        
-        assistantResponseText = response.data.data?.response || 'Odpověď od OpenAI Assistant byla prázdná';
-      } else {
-        // Fallback na původní GPT endpoint pro základní asistenty
-        response = await axios.post('/api/openai-assistant', {
-          assistant_type: selectedAssistant,
-          prompt: assistantPrompt
-        }, {
-          timeout: 30000
-        });
-        
-        assistantResponseText = response.data.response || 'Odpověď od asistenta byla prázdná';
-      }
-      
-      setAssistantResponse(assistantResponseText);
-      
-      // Uloží projekt do seznamu
-      const newProject = {
-        id: Date.now(),
-        title: assistantPrompt.substring(0, 50) + (assistantPrompt.length > 50 ? '...' : ''),
-        assistant_type: selectedAssistant,
-        assistant_name: selectedAssistantData.name,
-        original_prompt: assistantPrompt,
-        response: assistantResponseText,
-        character_count: assistantResponseText.length,
-        created_at: new Date().toISOString(),
-        preview: assistantResponseText.substring(0, 100) + (assistantResponseText.length > 100 ? '...' : ''),
-        is_openai_assistant: selectedAssistantData.type === 'openai_assistant'
-      };
-      
-      setGeneratedProjects(prev => [newProject, ...prev]);
-      
-      setResult({
-        success: true,
-        message: `Odpověď úspěšně získána od ${selectedAssistantData.type === 'openai_assistant' ? 'OpenAI Assistant' : 'AI asistenta'} a uložena do projektů!`
-      });
-      
-      // Vymaže pole po úspěšném odeslání
-      setAssistantPrompt('');
-      
-    } catch (err) {
-      console.error('Chyba při komunikaci s asistentom:', err);
-      setError(err.response?.data?.error || 'Chyba při komunikaci s asistentom');
-      setAssistantResponse('');
-    } finally {
-      setIsAssistantLoading(false);
-    }
-  };
-
-  // Automatické ukládání projektů do localStorage
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('generated_projects', JSON.stringify(generatedProjects));
-    } catch (error) {
-      console.error('Chyba při ukládání projektů do localStorage:', error);
-    }
-  }, [generatedProjects]);
+  // handleSendToAssistant funkce - ODSTRANĚNO (nepoužívá se)
+  // Automatické ukládání projektů - ODSTRANĚNO (nahrazeno VoiceGenerationQueue)
 
   // Automatické ukládání asistentů do localStorage
   React.useEffect(() => {
@@ -643,7 +599,7 @@ function App() {
     // NERESETUJE selectedBackground - zůstane vybrané pozadí
     
     loadExistingFiles();
-    // loadGeneratedProjects(); // Už nemusíme volat, projekty se načítají z localStorage
+    // Původní loadGeneratedProjects - ODSTRANĚNO (nahrazeno VoiceGenerationQueue)
   }, []);
 
   // Funkce pro načtení existujících souborů z backendu
@@ -730,11 +686,23 @@ function App() {
     console.log('🎯 Počet bloků celkem:', Object.keys(elevenlabsJson).length);
     
     if (Object.keys(elevenlabsJson).length > 0) {
-      setAutoJsonFromPipeline(elevenlabsJson);
-      console.log('✅ JSON připraven pro VoiceGenerator:', Object.keys(elevenlabsJson).length, 'bloků');
+      // ✅ MÍSTO AUTOMATICKÉHO PŘIDÁNÍ - ZOBRAZ TEXT K PŘEČTENÍ
+      console.log('📝 Text vygenerován:', Object.keys(elevenlabsJson).length, 'bloků');
+      console.log('⏸️ Čekám na schválení uživatelem před generováním hlasů...');
+      
+      // Ulož projekt pro pozdější generování hlasů
+      setPendingProject(finalProject);
+      setShowTextReview(true);
+      
+      setResult({
+        success: true,
+        message: `Text vygenerován (${Object.keys(elevenlabsJson).length} bloků). Zkontrolujte text a klikněte "Generovat hlasy" pro pokračování.`
+      });
     } else {
       console.warn('⚠️ Nepodařilo se vytvořit JSON pro VoiceGenerator - možná chybí voice_blocks');
       console.warn('⚠️ FinalProject struktura:', JSON.stringify(finalProject, null, 2));
+      
+      setError('Nepodařilo se extrahovat hlasové bloky z vygenerovaného projektu');
     }
   };
 
@@ -815,6 +783,67 @@ function App() {
   const getNumberFromFilename = (filename) => {
     const match = filename.match(/_(\d+)/);
     return match ? parseInt(match[1], 10) : 0;
+  };
+
+  // Callback pro VoiceGenerationQueue když potřebuje API klíč
+  const handleApiKeyRequired = () => {
+    openApiKeyModal();
+  };
+
+  // ✅ NOVÁ FUNKCE: Manuální schválení textu a přidání do hlasové fronty
+  const handleApproveTextForVoices = (finalProject) => {
+    console.log('✅ Uživatel schválil text - přidávám do hlasové fronty:', finalProject.title);
+    
+    if (voiceQueueRef.current) {
+      voiceQueueRef.current.addVoiceTask(finalProject);
+      console.log('🎤 Projekt přidán do fronty hlasů pro generování');
+    } else {
+      console.warn('⚠️ VoiceGenerationQueue reference není dostupná');
+    }
+  };
+
+  // ✅ NOVÁ FUNKCE: Manuální spuštění generování hlasů po kontrole textu
+  const handleStartVoiceGeneration = () => {
+    if (!pendingProject) {
+      console.warn('⚠️ Žádný projekt k zpracování');
+      return;
+    }
+
+    console.log('✅ Uživatel schválil text - spouštím generování hlasů:', pendingProject.title);
+    
+    if (voiceQueueRef.current) {
+      voiceQueueRef.current.addVoiceTask(pendingProject);
+      console.log('🎤 Projekt přidán do fronty hlasů pro generování');
+      
+      // Ukryj modal a vyresetuj stav
+      setShowTextReview(false);
+      setPendingProject(null);
+      
+      setResult({
+        success: true,
+        message: `Projekt "${pendingProject.title}" přidán do fronty generování hlasů!`
+      });
+    } else {
+      console.warn('⚠️ VoiceGenerationQueue reference není dostupná');
+      setError('VoiceGenerationQueue není dostupná');
+    }
+  };
+
+  // ✅ NOVÁ FUNKCE: Zrušení generování hlasů
+  const handleCancelVoiceGeneration = () => {
+    console.log('❌ Uživatel zrušil generování hlasů');
+    setShowTextReview(false);
+    setPendingProject(null);
+    
+    setResult({
+      success: false,
+      message: 'Generování hlasů bylo zrušeno'
+    });
+  };
+
+  // Funkce pro získání viditelných assistentů
+  const getVisibleAssistants = () => {
+    return availableAssistants.filter(assistant => !hiddenAssistants.includes(assistant.id));
   };
 
   // Funkce pro správné seřazení souborů pro dialog (Tesla_01, Socrates_01, Tesla_02, Socrates_02...)
@@ -1070,10 +1099,7 @@ function App() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Funkce pro obnovení seznamu skrytých asistentů (volá AssistantManager)
-  const refreshHiddenAssistants = () => {
-    loadHiddenAssistants();
-  };
+  // Funkce pro skryté asistenty - ODSTRANĚNO (jen manuální přidávání)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1089,163 +1115,26 @@ function App() {
           <p className="text-gray-600 max-w-xl mx-auto">
             Moderní webová aplikace pro generování a kombinování audio souborů
           </p>
+          
+          {/* Global Actions */}
+          <div className="mt-4 flex justify-center gap-3">
+            <button
+              onClick={() => setShowMusicLibraryModal(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm shadow-sm"
+            >
+              🎵 Music Library
+            </button>
+          </div>
         </div>
 
         {/* Video Production Pipeline - HLAVNÍ KOMPONENTA */}
         <div className="mb-8">
           <VideoProductionPipeline 
-            openaiApiKey={openaiApiKey}
-            availableAssistants={getVisibleAssistants()}
             onOpenApiManagement={openApiKeyModal}
-            onOpenAddAssistant={openAddAssistantModal}
-            onVideoProjectGenerated={handleVideoProjectGenerated}
           />
         </div>
 
-        {/* Vygenerované projekty */}
-        {generatedProjects.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                <span className="w-6 h-6 bg-green-100 rounded-md flex items-center justify-center mr-3">
-                  <span className="text-green-600 text-xs font-bold">DOC</span>
-                </span>
-                Vygenerované projekty ({generatedProjects.length})
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Klikněte na projekt pro zobrazení úplného obsahu
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {generatedProjects.map((project) => (
-                <div 
-                  key={project.id} 
-                  className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
-                >
-                  <div className="mb-3">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-1 truncate">
-                      {project.title}
-                    </h4>
-                    <div className="flex items-center space-x-2 text-xs text-gray-500">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md">
-                        {getVisibleAssistants().find(a => a.id === project.assistant_type)?.name || 'Asistent'}
-                      </span>
-                      <span>{project.character_count.toLocaleString()} znaků</span>
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-gray-600 mb-3 line-clamp-3">
-                    {project.preview}
-                  </p>
-                  
-                  <div className="text-xs text-gray-400 mb-3">
-                    {new Date(project.created_at).toLocaleDateString('cs-CZ', {
-                      day: '2-digit',
-                      month: '2-digit', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
-
-                  {/* Buttony pro akce */}
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => openProjectDetail(project)}
-                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Detail
-                    </button>
-                    <button
-                      onClick={() => handleProjectConfirm(project)}
-                      className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-                    >
-                      Potvrdit
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Modal pro detail projektu */}
-        {showProjectDetail && selectedProject && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              {/* Header modalu */}
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                      {selectedProject.title}
-                    </h2>
-                    <div className="flex items-center space-x-3 text-sm text-gray-600">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md">
-                        {getVisibleAssistants().find(a => a.id === selectedProject.assistant_type)?.name || 'Asistent'}
-                      </span>
-                      <span>{selectedProject.character_count.toLocaleString()} znaků</span>
-                      <span>
-                        {new Date(selectedProject.created_at).toLocaleDateString('cs-CZ', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={closeProjectDetail}
-                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              {/* Obsah modalu */}
-              <div className="p-6 overflow-y-auto max-h-[70vh]">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Původní prompt:</h3>
-                  <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-800">
-                    {selectedProject.original_prompt}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Vygenerovaný obsah:</h3>
-                  <div className="p-4 bg-blue-50 rounded-lg text-sm text-gray-800 whitespace-pre-wrap">
-                    {selectedProject.response}
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer modalu */}
-              <div className="p-6 border-t border-gray-200 bg-gray-50">
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedProject.response);
-                      setResult({ success: true, message: 'Obsah zkopírován do schránky!' });
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Kopírovat obsah
-                  </button>
-                  <button
-                    onClick={closeProjectDetail}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Zavřít
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Sekce "Vygenerované projekty" - ODSTRANĚNO (nahrazeno VoiceGenerationQueue) */}
 
         {/* Modal pro přidání asistenta */}
         {showAddAssistantModal && (
@@ -1373,6 +1262,40 @@ function App() {
 
               {/* Obsah modalu */}
               <div className="p-6 space-y-6">
+                {/* OpenRouter API */}
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center mb-3">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
+                      <span className="text-indigo-600 text-sm font-bold">OR</span>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">OpenRouter (LLM gateway)</h3>
+                      <p className="text-xs text-gray-500">Pro LLM pipeline (OpenAI/Gemini přes jednu API)</p>
+                    </div>
+                  </div>
+                  <input
+                    type="password"
+                    value={openrouterApiKey}
+                    onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                    placeholder="or_..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-gray-600">
+                      Status: {openrouterConfigured ? '✅ OpenRouter API key configured (server)' : '❌ OpenRouter API key missing (server)'}
+                    </div>
+                    <button
+                      onClick={saveOpenRouterKeyServerSide}
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Save API key (server)
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Získejte na: <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenRouter</a>
+                  </p>
+                </div>
+
                 {/* OpenAI API */}
                 <div className="p-4 border border-gray-200 rounded-lg">
                   <div className="flex items-center mb-3">
@@ -1391,12 +1314,23 @@ function App() {
                     placeholder="sk-..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   />
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-gray-600">
+                      Status: {openaiConfigured ? '✅ OpenAI API key configured (server)' : '❌ OpenAI API key missing (server)'}
+                    </div>
+                    <button
+                      onClick={saveOpenAiKeyServerSide}
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Save API key (server)
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
                     Získejte na: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Platform</a>
                   </p>
                 </div>
 
-                {/* ElevenLabs API */}
+                {/* DEPRECATED: ElevenLabs TTS (nahrazeno Google Cloud TTS v VideoProductionPipeline)
                 <div className="p-4 border border-gray-200 rounded-lg">
                   <div className="flex items-center mb-3">
                     <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
@@ -1414,10 +1348,22 @@ function App() {
                     placeholder="sk_..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   />
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-gray-600">
+                      Status: {elevenlabsConfiguredServer ? '✅ ElevenLabs API key configured (server)' : '❌ ElevenLabs API key missing (server)'}
+                    </div>
+                    <button
+                      onClick={saveElevenLabsKeyServerSide}
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Save API key (server)
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
                     Získejte na: <a href="https://elevenlabs.io/app/speech-synthesis/text-to-speech" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ElevenLabs</a>
                   </p>
                 </div>
+                */}
 
                 {/* YouTube API */}
                 <div className="p-4 border border-gray-200 rounded-lg">
@@ -1437,6 +1383,17 @@ function App() {
                     placeholder="AIza..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   />
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs text-gray-600">
+                      Status: {youtubeConfiguredServer ? '✅ YouTube API key configured (server)' : '❌ YouTube API key missing (server)'}
+                    </div>
+                    <button
+                      onClick={saveYoutubeKeyServerSide}
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Save API key (server)
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
                     Získejte na: <a href="https://console.developers.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Console</a>
                   </p>
@@ -1446,7 +1403,7 @@ function App() {
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <h4 className="text-sm font-semibold text-blue-800 mb-2">🔒 Bezpečnost</h4>
                   <p className="text-sm text-blue-700">
-                    Všechny API klíče se ukládají pouze lokálně ve vašem prohlížeči (localStorage) a jsou používány pouze pro přímou komunikaci s příslušnými službami.
+                    OpenRouter/OpenAI/ElevenLabs/YouTube klíče lze uložit server-side (backend). UI klíče nikdy nezobrazuje zpět – jen status.
                   </p>
                 </div>
 
@@ -1454,9 +1411,9 @@ function App() {
                 <div className="flex justify-center">
                   <button
                     onClick={handleTestApiConnections}
-                    disabled={isTestingApi || (!openaiApiKey && !elevenlabsApiKey && !youtubeApiKey)}
+                    disabled={isTestingApi || !openaiConfigured}
                     className={`px-6 py-2 rounded-md font-medium text-white transition-colors ${
-                      isTestingApi || (!openaiApiKey && !elevenlabsApiKey && !youtubeApiKey)
+                      isTestingApi || !openaiConfigured
                         ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-purple-600 hover:bg-purple-700'
                     }`}
@@ -1514,34 +1471,34 @@ function App() {
 
                 {/* API Status */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className={`p-3 rounded-lg border ${openaiApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`p-3 rounded-lg border ${openaiConfigured ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="text-center">
-                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${openaiApiKey ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                      <p className={`text-xs font-medium ${openaiApiKey ? 'text-green-700' : 'text-gray-500'}`}>
-                        OpenAI {openaiApiKey ? 'Konfiguráno' : 'Nekonfiguráno'}
+                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${openaiConfigured ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <p className={`text-xs font-medium ${openaiConfigured ? 'text-green-700' : 'text-gray-500'}`}>
+                        OpenAI {openaiConfigured ? 'Konfiguráno (server)' : 'Nekonfiguráno (server)'}
                       </p>
                     </div>
                   </div>
-                  <div className={`p-3 rounded-lg border ${elevenlabsApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`p-3 rounded-lg border ${elevenlabsConfiguredServer ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="text-center">
-                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${elevenlabsApiKey ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                      <p className={`text-xs font-medium ${elevenlabsApiKey ? 'text-green-700' : 'text-gray-500'}`}>
-                        ElevenLabs {elevenlabsApiKey ? 'Konfiguráno' : 'Nekonfiguráno'}
+                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${elevenlabsConfiguredServer ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <p className={`text-xs font-medium ${elevenlabsConfiguredServer ? 'text-green-700' : 'text-gray-500'}`}>
+                        ElevenLabs {elevenlabsConfiguredServer ? 'Konfiguráno (server)' : 'Nekonfiguráno (server)'}
                       </p>
                     </div>
                   </div>
-                  <div className={`p-3 rounded-lg border ${youtubeApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`p-3 rounded-lg border ${youtubeConfiguredServer ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="text-center">
-                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${youtubeApiKey ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                      <p className={`text-xs font-medium ${youtubeApiKey ? 'text-green-700' : 'text-gray-500'}`}>
-                        YouTube {youtubeApiKey ? 'Konfiguráno' : 'Nekonfiguráno'}
+                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${youtubeConfiguredServer ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                      <p className={`text-xs font-medium ${youtubeConfiguredServer ? 'text-green-700' : 'text-gray-500'}`}>
+                        YouTube {youtubeConfiguredServer ? 'Konfiguráno (server)' : 'Nekonfiguráno (server)'}
                       </p>
                     </div>
                   </div>
                 </div>
 
                 {/* Test OpenAI Assistants sekce */}
-                {openaiApiKey && getVisibleAssistants().some(a => a.type === 'openai_assistant') && (
+                {openaiConfigured && getVisibleAssistants().some(a => a.type === 'openai_assistant') && (
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                     <h4 className="text-sm font-semibold text-green-800 mb-3">🤖 Test OpenAI Assistants</h4>
                     
@@ -1634,29 +1591,70 @@ function App() {
 
 
 
-        {/* Voice Generator Card */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
-          <VoiceGenerator 
-            onVoicesGenerated={handleVoicesGenerated}
-            autoJsonFromPipeline={autoJsonFromPipeline}
-          />
-        </div>
+        {/* DEPRECATED SECTIONS - HIDDEN */}
+        {/* Voice Generation Queue - Stará ElevenLabs fronta - NEPOUŽÍVÁ SE */}
+        {false && (
+          <div className="mb-8">
+            <VoiceGenerationQueue 
+              ref={voiceQueueRef}
+              elevenlabsApiKey={elevenlabsApiKey}
+              onVoicesGenerated={handleVoicesGenerated}
+              onApiKeyRequired={handleApiKeyRequired}
+            />
+          </div>
+        )}
 
-        {/* DALL-E Test Section */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <span className="w-6 h-6 bg-purple-100 rounded-md flex items-center justify-center mr-3">
-                  <span className="text-purple-600 text-xs font-bold">🎨</span>
-                </span>
-                DALL-E 3 Image Generator (Test)
-              </h3>
-              <p className="text-sm text-gray-600">Rychlý test generování obrázků pomocí DALL-E 3</p>
+        {/* Video Generation Studio - Starý DALL-E video generator - NEPOUŽÍVÁ SE */}
+        {false && (
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">🎬 Video Generation Studio</h2>
+                  <p className="text-purple-100">
+                    Převeďte vaše audio projekty na profeslonální YouTube videa s AI obrázky a Ken Burns efekty
+                  </p>
+                  <div className="mt-3 text-sm">
+                    ✨ DALL·E 3 obrázky • 🎞️ Ken Burns efekty • 📱 YouTube Ready (1920x1080)
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVideoGenerationModal(true)}
+                  className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-purple-50 transition-colors flex items-center space-x-2"
+                >
+                  <span>🚀</span>
+                  <span>Vytvořit video</span>
+                </button>
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="space-y-4">
+        {/* Voice Generator Card - Ruční generování - NEPOUŽÍVÁ SE */}
+        {false && (
+          <div className="bg-white rounded-lg shadow-sm mb-6">
+            <VoiceGenerator 
+              onVoicesGenerated={handleVoicesGenerated}
+            />
+          </div>
+        )}
+
+        {/* DALL-E Test Section - NEPOUŽÍVÁ SE */}
+        {false && (
+          <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <span className="w-6 h-6 bg-purple-100 rounded-md flex items-center justify-center mr-3">
+                    <span className="text-purple-600 text-xs font-bold">🎨</span>
+                  </span>
+                  DALL-E 3 Image Generator (Test)
+                </h3>
+                <p className="text-sm text-gray-600">Rychlý test generování obrázků pomocí DALL-E 3</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Prompt pro obrázek
@@ -1673,9 +1671,9 @@ function App() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={handleGenerateImage}
-                disabled={isGeneratingImage || !dallePrompt.trim() || !openaiApiKey}
+                disabled={isGeneratingImage || !dallePrompt.trim() || !openaiConfigured}
                 className={`px-6 py-2 rounded-md font-medium text-white transition-colors ${
-                  isGeneratingImage || !dallePrompt.trim() || !openaiApiKey
+                  isGeneratingImage || !dallePrompt.trim() || !openaiConfigured
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-purple-600 hover:bg-purple-700'
                 }`}
@@ -1690,9 +1688,9 @@ function App() {
                 )}
               </button>
 
-              {!openaiApiKey && (
+              {!openaiConfigured && (
                 <p className="text-sm text-red-600">
-                  ⚠️ OpenAI API klíč není nastaven
+                  ⚠️ OpenAI API klíč není nastaven na serveru
                 </p>
               )}
             </div>
@@ -1733,13 +1731,17 @@ function App() {
                 </div>
               </div>
             )}
+            </div>
           </div>
-        </div>
+        )}
+        {/* END DEPRECATED SECTIONS */}
 
-        {/* Main Processing Card */}
+        {/* Main Processing Card - DEPRECATED: Stará kombinace audio souborů - NEPOUŽÍVÁ SE */}
+        {false && (
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           {/* Generated Voice Files */}
-          {generatedVoiceFiles.length > 0 && (
+          {/* Generated Voice Files - SKRYTO: Nyní používáme VoiceGenerationQueue */}
+          {false && generatedVoiceFiles.length > 0 && (
             <div className="mb-6 p-5 bg-gray-50 rounded-lg border">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <span className="w-6 h-6 bg-accent-100 rounded-md flex items-center justify-center mr-3">
@@ -2204,7 +2206,7 @@ function App() {
           {/* Chybová zpráva */}
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">CHYBA: {error}</p>
+              <p className="text-sm text-red-600">CHYBA: {toDisplayString(error)}</p>
             </div>
           )}
 
@@ -2243,6 +2245,8 @@ function App() {
             </button>
           </div>
         </div>
+        )}
+        {/* END Main Processing Card */}
 
         {/* Výsledky */}
         {result && (
@@ -2327,7 +2331,7 @@ function App() {
                     Video se nepodařilo vygenerovat
                   </p>
                   <p className="text-xs text-red-700 mt-1">
-                    {result.video_error}
+                    {toDisplayString(result.video_error)}
                   </p>
                   <p className="text-xs text-red-600 mt-1">
                     Audio a titulky jsou k dispozici, pouze video generování selhalo.
@@ -2337,6 +2341,182 @@ function App() {
             </div>
           </div>
                   )}
+
+      {/* Modal pro kontrolu textu před generováním hlasů */}
+      {showTextReview && pendingProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                    <span className="text-blue-600 text-lg">📝</span>
+                  </span>
+                  Kontrola textu před generováním hlasů
+                </h3>
+                <button
+                  onClick={handleCancelVoiceGeneration}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Projekt: <strong>{pendingProject.title}</strong>
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
+              {/* JSON zobrazení - to je to co chce uživatel! */}
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center">
+                  🔍 RAW JSON Data (celá struktura):
+                </h4>
+                
+                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-96 text-sm font-mono">
+                  <div className="mb-2 text-yellow-400 font-bold">🔍 COMPLETE PROJECT JSON:</div>
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(pendingProject, null, 2)}
+                  </pre>
+                  
+                  {/* DODATEČNÉ DEBUG INFO */}
+                  <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded">
+                    <div className="text-red-300 font-bold mb-2">🚨 DEBUG INFO:</div>
+                    <div className="text-sm space-y-1">
+                      <div>Segments count: {pendingProject.segments?.length || 0}</div>
+                      <div>First segment ID: {pendingProject.segments?.[0]?.id || 'N/A'}</div>
+                      <div>Content blocks: {pendingProject.segments?.[0]?.content ? Object.keys(pendingProject.segments[0].content).length : 0}</div>
+                      <div>First block: {pendingProject.segments?.[0]?.content ? Object.keys(pendingProject.segments[0].content)[0] : 'N/A'}</div>
+                      <div>All blocks: {pendingProject.segments?.[0]?.content ? Object.keys(pendingProject.segments[0].content).join(', ') : 'N/A'}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Segmenty detail - rychlý přehled */}
+              {pendingProject.segments?.[0]?.content && (
+                <div className="mb-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">
+                    📋 Rychlý přehled bloků ({Object.keys(pendingProject.segments[0].content).length} bloků):
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 bg-gray-50 p-4 rounded-lg max-h-48 overflow-y-auto">
+                    {Object.entries(pendingProject.segments[0].content).map(([blockName, blockData], index) => (
+                      <div key={blockName} className="bg-white p-2 rounded border text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-gray-700 truncate">
+                            {blockName}
+                          </span>
+                          <span className="text-xs px-1 py-0.5 bg-blue-100 text-blue-700 rounded">
+                            {blockData.voice_id?.substring(0, 8) || 'No voice'}
+                          </span>
+                        </div>
+                        <p className="text-gray-600 line-clamp-2">
+                          {blockData.text?.substring(0, 80) || 'Chybí text'}...
+                        </p>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {blockData.text ? blockData.text.split(' ').length : 0} slov
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Statistiky */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h5 className="text-sm font-medium text-blue-800 mb-2">Statistiky projektu:</h5>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-700">Celkem bloků:</span>
+                    <span className="ml-2 font-medium">
+                      {pendingProject.segments?.[0]?.content ? Object.keys(pendingProject.segments[0].content).length : 0}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Odhadovaná délka:</span>
+                    <span className="ml-2 font-medium">
+                      {pendingProject.video_info?.total_duration_minutes || 0} minut
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Celkem slov:</span>
+                    <span className="ml-2 font-medium">
+                      {pendingProject.segments?.[0]?.content ? 
+                        Object.values(pendingProject.segments[0].content)
+                          .reduce((total, block) => total + (block.text ? block.text.split(' ').length : 0), 0)
+                        : 0
+                      }
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Kategorie:</span>
+                    <span className="ml-2 font-medium">
+                      {(() => {
+                        const content = pendingProject.segments?.[0]?.content;
+                        if (!content) return 'Neznámá';
+                        
+                        const firstBlockName = Object.keys(content)[0];
+                        console.log('🔍 DETEKCE KATEGORIE - první blok:', firstBlockName);
+                        console.log('🔍 DETEKCE KATEGORIE - všechny bloky:', Object.keys(content));
+                        
+                        const isNarrator = firstBlockName?.startsWith('Narrator');
+                        const category = isNarrator ? 'Document narration' : 'Podcast dialog';
+                        
+                        console.log('🔍 DETEKCE KATEGORIE - výsledek:', category);
+                        return category;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Varování */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <span className="text-yellow-600 text-lg mr-3">⚠️</span>
+                  <div>
+                    <h5 className="text-sm font-medium text-yellow-800 mb-1">Před pokračováním:</h5>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                      <li>• Zkontrolujte si JSON strukturu výše - obsahuje voice_id, text a metadata</li>
+                      <li>• Ujistěte se, že máte nastaven ElevenLabs API klíč</li>
+                      <li>• Generování hlasů může trvat několik minut</li>
+                      <li>• Po spuštění už nelze změnit text</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  💡 Tip: Zkopírujte si JSON pro analýzu nebo ladění
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleCancelVoiceGeneration}
+                    className="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                  >
+                    Zrušit
+                  </button>
+                  <button
+                    onClick={handleStartVoiceGeneration}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+                  >
+                    🎤 Generovat hlasy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Modal pro YouTube projekt detail */}
@@ -2505,7 +2685,8 @@ function App() {
         </div>
       )}
 
-      {/* YouTube projekty - hotové k nahrání */}
+      {/* YouTube projekty - DEPRECATED: Mock data - SKRYTO */}
+      {false && (
       <div className="bg-white rounded-lg shadow-sm mb-6">
         <div className="p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
@@ -2601,11 +2782,10 @@ function App() {
           </div>
         </div>
       </div>
+      )}
+      {/* END Mock YouTube Projects */}
 
-      {/* Assistant Manager Card */}
-      <div className="bg-white rounded-lg shadow-sm mb-6">
-        <AssistantManager onRefreshNeeded={refreshHiddenAssistants} />
-      </div>
+      {/* Assistant Manager Card - ODSTRANĚNO (duplicitní - dostupné v API Management) */}
 
       {/* Background Uploader Card */}
       <div className="bg-white rounded-lg shadow-sm mb-6">
@@ -2622,6 +2802,23 @@ function App() {
           setUseVideoBackground={setUseVideoBackground}
         />
       </div>
+
+      {/* Video Generation Modal */}
+      {showVideoGenerationModal && (
+        <VideoGenerationSimple 
+          onClose={() => setShowVideoGenerationModal(false)}
+        />
+      )}
+
+      {/* Music Library Modal - Globální přístup */}
+      <MusicLibraryModal
+        isOpen={showMusicLibraryModal}
+        onClose={() => setShowMusicLibraryModal(false)}
+        onSelectTrack={null}
+      />
+
+      {/* Topic Intelligence Panel - Isolated Research Feature */}
+      <TopicIntelligencePanel />
     </div>
   );
 }
